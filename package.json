@@ -7,6 +7,7 @@
   "description": "Show a brief message at the bottom of the screen.",
   "main": "dist/snackbar.js",
   "module": "dist/snackbar.es.js",
+  "types": "dist/index.d.ts",
   "files": [
     "dist/index.d.ts",
     "dist/snackbar.es.js",
@@ -33,8 +34,8 @@
   "devDependencies": {
     "@poi/plugin-typescript": "^12.2.1",
     "bili": "^4.7.3",
-    "husky": "^1.0.0-rc.13",
-    "lint-staged": "^7.2.0",
+    "husky": "^2.4.1",
+    "lint-staged": "^8.2.1",
     "poi": "^12.6.8",
     "postcss-preset-env": "^6.6.0",
     "prettier": "^1.15.2",
