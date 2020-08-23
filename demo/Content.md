@@ -5,8 +5,8 @@ A tiny browser library for showing a brief message at the bottom of the screen (
 ## Use with bundler
 
 ```js
-import { createSnackbar } from '@egoist/snackbar'
-import '@egoist/snackbar/dist/snackbar.css'
+import { createSnackbar } from '@snackbar/core'
+import '@snackbar/core/dist/snackbar.css'
 
 createSnackbar('hello', {
   position: 'right'
@@ -18,10 +18,10 @@ createSnackbar('hello', {
 ```html
 <link
   rel="stylesheet"
-  href="https://unpkg.com/@egoist/snackbar/dist/snackbar.min.css"
+  href="https://unpkg.com/@snackbar/core/dist/snackbar.min.css"
 />
 
-<script src="https://unpkg.com/@egoist/snackbar/dist/snackbar.min.js"></script>
+<script src="https://unpkg.com/@snackbar/core/dist/snackbar.min.js"></script>
 
 <script>
   snackbar.createSnackbar('hello')
@@ -34,16 +34,14 @@ createSnackbar('hello', {
 
 [GitHub repo](https://github.com/egoist/snackbar)
 
-[Buy me a coffee](https://ko-fi.com/support_egoist)
-
-[Support me on Patreon](https://patreon.com/egoist)
+[Sponsor me on GitHub](https://github.com/sponsors/egoist)
 
 ## Examples
 
 ### Destory all snackbars
 
 ```js
-import { destroyAllSnackbars } from '@egoist/snackbar'
+import { destroyAllSnackbars } from '@snackbar/core'
 
 destroyAllSnackbars()
 ```
@@ -53,7 +51,7 @@ destroyAllSnackbars()
 ### Self-destroy in specific timeout
 
 ```js
-import { createSnackbar } from '@egoist/snackbar'
+import { createSnackbar } from '@snackbar/core'
 
 createSnackbar('hello world', {
   timeout: 2000 // 2 seconds
@@ -64,10 +62,23 @@ createSnackbar('hello world', {
 timeout: 2000 // 2 seconds
 })">Show message</button>
 
+### Use a DOM node as message
+
+```js
+import { createSnackbar } from '@snackbar/core'
+
+const message = document.createElement('div')
+message.innerHTML = `<strong style="color:pink">DOM node</strong>`
+
+createSnackbar(message)
+```
+
+<button @click="createDOMNodeSnackbar">Show message</button>
+
 ### Custom action button
 
 ```js
-import { createSnackbar } from '@egoist/snackbar'
+import { createSnackbar } from '@snackbar/core'
 
 createSnackbar('hello world', {
   actions: [
@@ -87,6 +98,48 @@ createSnackbar('hello world', {
 ```
 
 <button @click="createConfirmSnackbar">Show message</button>
+
+Check out [the docs](/docs/interfaces/snackoptions.html#actions) for `actions` option.
+
+### Light theme
+
+```js
+import { createSnackbar } from '@snackbar/core'
+
+createSnackbar('light theme', {
+  theme: 'light'
+})
+```
+
+<button @click="createSnackbar('light theme', {
+theme: 'light'
+})">Show message</button>
+
+Check out [the docs](/docs/interfaces/snackoptions.html#theme) for `theme` option.
+
+### Custom theme
+
+```js
+import { createSnackbar } from '@snackbar/core'
+
+createSnackbar('custom theme', {
+  theme: {
+    backgroundColor: 'magenta',
+    actionColor: 'cyan'
+  }
+})
+```
+
+<button @click="createSnackbar('custom theme', {
+theme: {
+backgroundColor: 'magenta',
+actionColor: 'cyan'
+}
+})">Show message</button>
+
+Check out [all properties](/docs/interfaces/themerules.html) under the `theme` option.
+
+<!-- add content above -->
 
 <script>
 import { destroyAllSnackbars, createSnackbar } from '../src'
@@ -112,6 +165,13 @@ export default {
           }
         ]
       })
+    },
+
+    createDOMNodeSnackbar() {
+      const message = document.createElement('div')
+      message.innerHTML = `<strong style="color:pink">DOM node</strong>`
+
+      createSnackbar(message)
     }
   }
 }

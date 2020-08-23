@@ -46,22 +46,58 @@ export interface SnackOptions {
    * @default `center`
    */
   position?: Position
+  theme?: 'light' | 'dark' | ThemeRules
+  /**
+   * Maximum stacks to display, earlier created snackbar will be hidden
+   * @default 3
+   */
+  maxStack?: number
 }
 
 export interface SnackInstanceOptions {
   timeout: number
   actions: Action[]
   position: Position
+  theme: ThemeRules
+  maxStack: number
 }
 
 export interface SnackResult {
   destroy: () => void
 }
 
-let instances: Snackbar[] = []
+export interface ThemeRules {
+  backgroundColor?: string
+  textColor?: string
+  boxShadow?: string
+  actionColor?: string
+}
+
+let instances: { [k: string]: Snackbar[] } = {
+  left: [],
+  center: [],
+  right: []
+}
+
+let instanceStackStatus: { [k: string]: boolean } = {
+  left: true,
+  center: true,
+  right: true
+}
+
+const themes: { [name: string]: ThemeRules } = {
+  light: {
+    backgroundColor: '#fff',
+    textColor: '#000',
+    actionColor: '#008000'
+  },
+  dark: {}
+}
+
+export type Message = string | HTMLElement
 
 export class Snackbar {
-  message: string
+  message: Message
   options: SnackInstanceOptions
   wrapper: HTMLDivElement
   /**
@@ -69,23 +105,33 @@ export class Snackbar {
    */
   el?: HTMLDivElement
   private timeoutId?: number
+  private visibilityTimeoutId?: number
 
-  constructor(message: string, options: SnackOptions = {}) {
+  constructor(message: Message, options: SnackOptions = {}) {
     const {
       timeout = 0,
       actions = [{ text: 'dismiss', callback: () => this.destroy() }],
-      position = 'center'
+      position = 'center',
+      theme = 'dark',
+      maxStack = 3
     } = options
     this.message = message
     this.options = {
       timeout,
       actions,
-      position
+      position,
+      maxStack,
+      theme: typeof theme === 'string' ? themes[theme] : theme
     }
 
     this.wrapper = this.getWrapper(this.options.position)
     this.insert()
-    instances.push(this)
+    instances[this.options.position].push(this)
+    this.stack()
+  }
+
+  get theme() {
+    return this.options.theme
   }
 
   getWrapper(position: Position): HTMLDivElement {
@@ -107,10 +153,30 @@ export class Snackbar {
     el.setAttribute('aria-atomic', 'true')
     el.setAttribute('aria-hidden', 'false')
 
+    const { backgroundColor, textColor, boxShadow, actionColor } = this.theme
+
+    const container = document.createElement('div')
+    container.className = 'snackbar--container'
+    if (backgroundColor) {
+      container.style.backgroundColor = backgroundColor
+    }
+    if (textColor) {
+      container.style.color = textColor
+    }
+    if (boxShadow) {
+      container.style.boxShadow = boxShadow
+    }
+    el.appendChild(container)
+
+    // Append message
     const text = document.createElement('div')
     text.className = 'snackbar--text'
-    text.textContent = this.message
-    el.appendChild(text)
+    if (typeof this.message === 'string') {
+      text.textContent = this.message
+    } else {
+      text.appendChild(this.message)
+    }
+    container.appendChild(text)
 
     // Add action buttons
     if (this.options.actions) {
@@ -119,6 +185,9 @@ export class Snackbar {
         const button = document.createElement('button')
         button.className = 'snackbar--button'
         button.innerHTML = text
+        if (actionColor) {
+          button.style.color = actionColor
+        }
         if (style) {
           Object.keys(style).forEach(key => {
             button.style[key as any] = style[key]
@@ -132,24 +201,72 @@ export class Snackbar {
             this.destroy()
           }
         })
-        el.appendChild(button)
+        container.appendChild(button)
       }
     }
 
     this.startTimer()
 
-    // Stop timer when mouseenter
-    // Restart timer when mouseleave
     el.addEventListener('mouseenter', () => {
-      this.stopTimer()
+      this.expand()
     })
     el.addEventListener('mouseleave', () => {
-      this.startTimer()
+      this.stack()
     })
 
     this.el = el
 
     this.wrapper.appendChild(el)
+  }
+
+  stack() {
+    instanceStackStatus[this.options.position] = true
+    const positionInstances = instances[this.options.position]
+    const l = positionInstances.length - 1
+    positionInstances.forEach((instance, i) => {
+      // Resume all instances' timers if applicable
+      instance.startTimer()
+      const { el } = instance
+      if (el) {
+        el.style.transform = `translate3d(0, -${(l - i) * 15}px, -${l -
+          i}px) scale(${1 - 0.05 * (l - i)})`
+        const hidden = l - i >= this.options.maxStack
+        this.toggleVisibility(el, hidden)
+      }
+    })
+  }
+
+  expand() {
+    instanceStackStatus[this.options.position] = false
+    const positionInstances = instances[this.options.position]
+    const l = positionInstances.length - 1
+    positionInstances.forEach((instance, i) => {
+      // Stop all instances' timers to prevent destroy
+      instance.stopTimer()
+      const { el } = instance
+      if (el) {
+        el.style.transform = `translate3d(0, -${(l - i) *
+          el.clientHeight}px, 0) scale(1)`
+        const hidden = l - i >= this.options.maxStack
+        this.toggleVisibility(el, hidden)
+      }
+    })
+  }
+
+  toggleVisibility(el: HTMLDivElement, hidden: boolean) {
+    if (hidden) {
+      this.visibilityTimeoutId = window.setTimeout(() => {
+        el.style.visibility = 'hidden'
+      }, 300)
+      el.style.opacity = '0'
+    } else {
+      if (this.visibilityTimeoutId) {
+        clearTimeout(this.visibilityTimeoutId)
+        this.visibilityTimeoutId = undefined
+      }
+      el.style.opacity = '1'
+      el.style.visibility = 'visible'
+    }
   }
 
   /**
@@ -158,10 +275,10 @@ export class Snackbar {
   async destroy() {
     const { el, wrapper } = this
     if (el) {
-      // Transition the snack away.
+      // Animate the snack away.
       el.setAttribute('aria-hidden', 'true')
       await new Promise(resolve => {
-        const eventName = getTransitionEvent(el)
+        const eventName = getAnimationEvent(el)
         if (eventName) {
           el.addEventListener(eventName, () => resolve())
         } else {
@@ -169,8 +286,25 @@ export class Snackbar {
         }
       })
       wrapper.removeChild(el)
+      // Remove instance from the instances array
+      const positionInstances = instances[this.options.position]
+      let index: number | undefined = undefined
+      for (let i = 0; i < positionInstances.length; i++) {
+        if (positionInstances[i].el === el) {
+          index = i
+          break
+        }
+      }
+      if (index !== undefined) {
+        positionInstances.splice(index, 1)
+      }
+      // Based on current status, refresh stack or expand style
+      if (instanceStackStatus[this.options.position]) {
+        this.stack()
+      } else {
+        this.expand()
+      }
     }
-    this.el = undefined
   }
 
   startTimer() {
@@ -190,29 +324,30 @@ export class Snackbar {
   }
 }
 
-function getTransitionEvent(el: HTMLDivElement): string | undefined {
-  const transitions: { [k: string]: string } = {
-    transition: 'transitionend',
-    OTransition: 'oTransitionEnd',
-    MozTransition: 'transitionend',
-    WebkitTransition: 'webkitTransitionEnd'
+function getAnimationEvent(el: HTMLDivElement): string | undefined {
+  const animations: { [k: string]: string } = {
+    animation: 'animationend',
+    OAnimation: 'oAnimationEnd',
+    MozAnimation: 'Animationend',
+    WebkitAnimation: 'webkitAnimationEnd'
   }
 
-  for (const key of Object.keys(transitions)) {
+  for (const key of Object.keys(animations)) {
     if (el.style[key as any] !== undefined) {
-      return transitions[key]
+      return animations[key]
     }
   }
   return
 }
 
-export function createSnackbar(message: string, options?: SnackOptions) {
+export function createSnackbar(message: Message, options?: SnackOptions) {
   return new Snackbar(message, options)
 }
 
 export function destroyAllSnackbars() {
-  const cleanup = () => (instances = [])
-  return Promise.all(instances.map(instance => instance.destroy()))
-    .then(cleanup)
-    .catch(cleanup)
+  let instancesArray: Snackbar[] = []
+  Object.keys(instances)
+    .map(position => instances[position])
+    .forEach(positionInstances => instancesArray.push(...positionInstances))
+  return Promise.all(instancesArray.map(instance => instance.destroy()))
 }
